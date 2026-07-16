@@ -457,7 +457,7 @@
             // Bắt đầu đo thời gian vẽ thuần tuý của phần cứng (CPU & GPU)
             const drawStart = performance.now();
 
-            // Vẽ toàn bộ các vật thể hiện hữu
+            // Vẽ toàn bộ các vật thể hiện hữu (khi calibration thì objects rỗng -> bỏ qua vẽ)
             for (let i = 0; i < objects.length; i++) {
                 objects[i].update(rect.width, rect.height);
                 objects[i].draw(ctx);
@@ -477,7 +477,8 @@
             
             if (fpsDelta >= 500) { // Cập nhật chỉ số FPS thực tế mỗi 0.5s để hiển thị ổn định
                 fps = Math.round((frameCount * 1000) / fpsDelta);
-                fpsDisplay.innerText = fps > 60 ? 60 : fps; // Khống chế hiển thị tối đa 60 FPS theo yêu cầu
+                const displayedFps = fps > 60 ? 60 : fps; // Khống chế hiển thị tối đa 60 FPS theo yêu cầu
+                fpsDisplay.innerText = displayedFps;
                 
                 // Đồng bộ chỉ số độ trễ trung bình thực tế lên UI
                 const avgFrameTime = (fpsDelta / frameCount).toFixed(2);
@@ -490,30 +491,37 @@
                 // Đổi màu thanh tiến trình tùy thuộc chất lượng
                 if (avgFrameTime < 18) {
                     frameTimeProgress.className = "bg-emerald-500 h-full transition-all duration-300";
-                    statusBadge.innerText = "MƯỢT MÀ";
-                    statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-widest";
+                    if (!isCalibrating) {
+                        statusBadge.innerText = "MƯỢT MÀ";
+                        statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-widest";
+                    }
                 } else if (avgFrameTime < 33) {
                     frameTimeProgress.className = "bg-amber-500 h-full transition-all duration-300";
-                    statusBadge.innerText = "HƠI KHỰNG";
-                    statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 uppercase tracking-widest";
+                    if (!isCalibrating) {
+                        statusBadge.innerText = "HƠI KHỰNG";
+                        statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 uppercase tracking-widest";
+                    }
                 } else {
                     frameTimeProgress.className = "bg-red-500 h-full transition-all duration-300";
-                    statusBadge.innerText = "LAG NẶNG";
-                    statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 uppercase tracking-widest";
+                    if (!isCalibrating) {
+                        statusBadge.innerText = "LAG NẶNG";
+                        statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 uppercase tracking-widest";
+                    }
                 }
 
                 frameCount = 0;
                 lastFpsUpdateTime = currentTime;
 
-                // KIỂM TRA ĐIỀU KIỆN ỔN ĐỊNH FPS (Nếu đang ở trạng thái hiệu chuẩn)
+                // KIỂM TRA ĐIỀU KIỆN ỔN ĐỊNH FPS ĐẠT CHẠM MỐC 60 FPS ĐỂ BẮT ĐẦU XUẤT HIỆN VẬT THỂ THẬT
                 if (is60sActive && isCalibrating) {
-                    // Khi bắt đầu từ 0 vật thể, thiết bị bình thường sẽ dễ dàng chạm mốc tối đa 60 FPS (hoặc tiệm cận >= 58 FPS)
-                    if (fps >= 58) {
+                    // Khi FPS thực tế hoặc FPS hiển thị đã phục hồi chạm mức 60 FPS
+                    if (displayedFps >= 60) {
                         triggerStartOfficial60sCountdown();
                     }
                 }
 
-                // THUẬT TOÁN ĐIỀU PHỐI ĐỘNG VẬT THỂ TỰ ĐỘNG KHÔNG PHỤ THUỘC FPS (Chỉ kích hoạt khi không ở trạng thái đợi mượt mà)
+                // THUẬT TOÁN ĐIỀU PHỐI ĐỘNG VẬT THỂ TỰ ĐỘNG KHÔNG PHỤ THUỘC FPS
+                // Chỉ kích hoạt tự động tăng/giảm vật thể khi KHÔNG nằm trong giai đoạn hiệu chuẩn FPS nền
                 if (isAutoMode && !isCalibrating) {
                     const avgRenderTime = renderTimeSum / renderCount;
                     const beforeCount = objectCount;
@@ -678,9 +686,9 @@
         function start60sBenchmark() {
             if (is60sActive) return;
             is60sActive = true;
-            isCalibrating = true; // Kích hoạt chế độ chờ ổn định 60 FPS trước khi đo
+            isCalibrating = true; // Bật cờ hiệu chuẩn hệ thống đạt đúng 60 FPS
 
-            // THIẾT LẬP BẮT ĐẦU TỪ 0 VẬT THỂ
+            // KHỞI ĐẦU TỪ 0 VẬT THỂ ĐỂ FPS KHÔNG BỊ NGHẼN, PHỤC HỒI NHANH LÊN 60 FPS
             objectCount = 0;
             objects = [];
             maxObjects = 0;
@@ -688,7 +696,7 @@
             objHistory = [0];
             renderTimeSum = 0;
             renderCount = 0;
-
+            
             // Đảm bảo hệ thống đang tự động tối ưu và đang hoạt động
             if (!isAutoMode) {
                 toggleAutoMode();
@@ -697,60 +705,74 @@
                 togglePlayPause();
             }
 
-            // Thiết lập trạng thái chờ mượt mà trên UI nổi
+            // Thiết lập giao diện chờ đạt 60 FPS
             overlayCountdown.innerText = "Chờ 60 FPS...";
             overlayObjCount.innerText = "0";
-            benchmarkStatusText.innerText = "ĐANG KHỞI ĐỘNG...";
+            benchmarkStatusText.innerText = "HIỆU CHUẨN ĐƯỜNG TRUYỀN...";
             benchmarkStatusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
+            statusBadge.innerText = "CHỜ 60 FPS";
+            statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 uppercase tracking-widest animate-pulse";
 
-            // Áp dụng lớp phóng to toàn bộ màn hình
+            // Phóng to toàn bộ màn hình
             canvasContainer.classList.add('benchmark-fullscreen');
-            // Ẩn panel điều khiển để không cho tương tác hay nhấn bậy
+            // Ẩn panel điều khiển để không cho tương tác bậy
             controlPanel.classList.add('hidden');
-            // Hiện khung chứa số lượng vật thể và bộ đếm giây nổi ở góc trái
+            // Hiện khung chứa số lượng vật thể nổi ở góc trái
             benchmarkIndicator.classList.remove('hidden');
 
             // Ngăn chặn cuộn trang, cử chỉ vuốt và thao tác thu phóng trên trình duyệt di động
             document.documentElement.classList.add('overflow-hidden', 'h-screen', 'fixed', 'inset-0', 'touch-none', 'select-none', 'overscroll-none');
             document.body.classList.add('overflow-hidden', 'h-screen', 'fixed', 'inset-0', 'touch-none', 'select-none', 'overscroll-none');
 
-            // Đăng ký các hàm chặn sự kiện kéo, zoom bằng hai ngón tay hay cuộn chuột
+            // Khóa kéo, cuộn, click
             window.addEventListener('touchmove', blockInteraction, { passive: false });
             window.addEventListener('wheel', blockInteraction, { passive: false });
             window.addEventListener('touchstart', blockInteraction, { passive: false });
 
-            // Kích hoạt vẽ lại kích thước canvas để lấp đầy toàn bộ diện tích màn hình mới
+            // Cập nhật lại kích thước Canvas
             setTimeout(() => {
                 resizeCanvas();
             }, 100);
 
-            // Thực thi việc khóa giữ sáng màn hình
+            // Khóa giữ sáng màn hình
             requestWakeLock();
 
-            addLog("🚀 KHỞI ĐỘNG CHU KỲ TEST 60 GIÂY (BẮT ĐẦU TỪ 0 VẬT THỂ)...");
-            addLog("⏳ Đang chuẩn bị... Chờ tốc độ khung hình (FPS) ổn định tối đa để bắt đầu đo chính xác.");
+            addLog("🚀 KHỞI ĐỘNG CHU KỲ TEST 60 GIÂY...");
+            addLog("⏳ Hệ thống bắt đầu từ 0 vật thể. Chờ tốc độ khung hình (FPS) khôi phục chạm mức 60 FPS để bắt đầu đo...");
 
-            // Bộ hẹn giờ dự phòng (tối đa 3 giây) đề phòng thiết bị cấu hình quá yếu không bao giờ đạt được 60 FPS
+            // Bộ hẹn giờ dự phòng (tối đa 4 giây) đề phòng thiết bị quá cũ không thể gánh nổi 60 FPS ngay cả khi màn hình trống
             calibrationTimeout = setTimeout(() => {
                 if (isCalibrating) {
-                    addLog("⚠️ Đã quá thời gian chờ hiệu chuẩn mượt mà. Tự động bắt đầu test ngay.");
+                    addLog("⚠️ Quá thời gian hiệu chuẩn mượt mà. Tự động xuất hiện vật thể và đo ngay.");
                     triggerStartOfficial60sCountdown();
                 }
-            }, 3000);
+            }, 4000);
         }
 
-        // KÍCH HOẠT CHẠY THỜI GIAN ĐẾM NGƯỢC CHÍNH THỨC 60 GIÂY SAU KHI FPS ĐÃ ĐẠT ĐỈNH (TỐI ĐA)
+        // KÍCH HOẠT CHẠY THỜI GIAN ĐẾM NGƯỢC CHÍNH THỨC 60 GIÂY SAU KHI FPS ĐẠT 60
         function triggerStartOfficial60sCountdown() {
             if (!isCalibrating) return;
             isCalibrating = false;
             clearTimeout(calibrationTimeout); // Xóa bộ đếm dự phòng
 
+            // ĐÃ ĐẠT 60 FPS -> XUẤT HIỆN VẬT THỂ THẬT (Khởi tạo 50 vật thể)
+            objectCount = 50;
+            maxObjects = 50;
+            minObjects = 50;
+            objHistory = [50];
+            
+            initializeObjects(); // Sinh vật thể mượt mà trực quan
+            updateStatDisplays();
+
             timeLeft = 60;
             overlayCountdown.innerText = "60s";
             benchmarkStatusText.innerText = "BENCHMARK ĐANG CHẠY";
             benchmarkStatusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-ping";
+            
+            statusBadge.innerText = "ĐANG CHẠY";
+            statusBadge.className = "mt-2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-widest";
 
-            addLog("🔥 Thiết bị đã đạt FPS ổn định tối đa. Bắt đầu đếm ngược 60 giây và đo hiệu năng thực tế!");
+            addLog(`🔥 Đồng hồ đo đạt đủ 60 FPS! Đã xuất hiện 50 vật thể thật. Bắt đầu đếm ngược 60 giây đo hiệu năng.`);
 
             // Bắt đầu đếm ngược 60 giây chính thức
             benchmarkTimer = setInterval(() => {
