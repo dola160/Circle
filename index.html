@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiểm tra Hiệu năng Thiết bị Thực tế (Không giả lập)</title>
+    <!-- Tailwind CSS để tạo giao diện trắng tinh tế hiện đại -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc; /* Nền trắng xám nhạt siêu sạch sẽ */
+        }
+        /* Hiệu ứng viền xoay gradient tinh tế xung quanh hình tròn chính */
+        @keyframes rotate-slow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .animate-rotate-slow {
+            animation: rotate-slow 12s linear infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between text-slate-800 p-4 md:p-6 select-none overflow-x-hidden">
+
+    <!-- Header -->
+    <header class="w-full max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div class="text-center sm:text-left">
+            <h1 class="text-xl md:text-2xl font-extrabold tracking-tight text-slate-900 flex items-center justify-center sm:justify-start gap-2">
+                <span class="text-indigo-600">⚡</span> BENCHMARK HARDWARE THẬT
+            </h1>
+            <p class="text-xs text-slate-500 font-medium mt-0.5">Phát hiện trễ bằng AI · Không dùng dữ liệu ảo · Không dựa vào FPS cố định</p>
+        </div>
+        <div class="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-semibold">
+            <span class="w-2 h-2 rounded-full bg-indigo-600 animate-ping"></span>
+            Thiết bị đang hoạt động trực tiếp
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-4xl mx-auto my-auto py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        
+        <!-- Cột Trái: Trình diễn vòng tròn hiệu năng vật lý thực tế -->
+        <div class="lg:col-span-7 flex flex-col items-center justify-center">
+            <!-- Vòng tròn phản hồi xúc giác / Visualizer -->
+            <div id="circle-container" class="relative w-[280px] h-[280px] xs:w-[320px] xs:h-[320px] sm:w-[380px] sm:h-[380px] md:w-[420px] md:h-[420px] rounded-full bg-white shadow-xl shadow-slate-200/50 border border-slate-100 flex items-center justify-center transition-all duration-300">
+                
+                <!-- Viền trang trí chuyển động tinh tế -->
+                <div class="absolute inset-2 rounded-full border border-dashed border-slate-200 animate-rotate-slow pointer-events-none"></div>
+                <div id="glow-indicator" class="absolute inset-0 rounded-full border-2 border-indigo-500/20 transition-all duration-500 pointer-events-none"></div>
+
+                <!-- Canvas Vật lý Thực - Stress test thực tế bằng thuật toán va chạm -->
+                <canvas id="physics-canvas" class="absolute inset-6 rounded-full bg-slate-50/50 z-10 transition-transform duration-300"></canvas>
+                
+                <!-- Overlay Trung tâm hiển thị Trạng thái AI -->
+                <div class="absolute z-20 pointer-events-none flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-4 py-3 rounded-2xl shadow-md border border-slate-100/50 text-center max-w-[200px]">
+                    <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Bộ não AI cảm nhận</span>
+                    <span id="ai-status-badge" class="text-sm font-extrabold text-emerald-600 mt-1 transition-colors duration-300">Đang học hỏi...</span>
+                    <span id="ai-anger-percent" class="text-[10px] font-medium text-slate-500 mt-0.5">Độ trễ: 0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cột Phải: Bảng điều khiển & Chỉ số -->
+        <div class="lg:col-span-5 flex flex-col gap-5">
+            
+            <!-- Thẻ Chỉ số Vật thể & FPS -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm shadow-slate-100">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    📊 Chỉ số phần cứng thời gian thực
+                </h2>
+                
+                <!-- Grid thông số -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100/80">
+                        <p class="text-xs text-slate-400 font-semibold">Vật thể hiện tại</p>
+                        <p id="stat-current" class="text-2xl font-black text-slate-900 mt-1">0</p>
+                    </div>
+                    <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/30">
+                        <p class="text-xs text-indigo-500 font-bold">FPS Thật 100%</p>
+                        <p id="stat-fps" class="text-2xl font-black text-indigo-600 mt-1">--</p>
+                    </div>
+                </div>
+
+                <!-- Thống kê chi tiết vật thể -->
+                <div class="grid grid-cols-3 gap-2.5 mt-3">
+                    <div class="bg-slate-50 p-2.5 rounded-lg text-center border border-slate-100/50">
+                        <p class="text-[10px] text-slate-400 font-semibold">Trung bình</p>
+                        <p id="stat-avg" class="text-sm font-bold text-slate-800 mt-0.5">0</p>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg text-center border border-slate-100/50">
+                        <p class="text-[10px] text-slate-400 font-semibold">Tối đa (Max)</p>
+                        <p id="stat-max" class="text-sm font-bold text-slate-800 mt-0.5">0</p>
+                    </div>
+                    <div class="bg-slate-50 p-2.5 rounded-lg text-center border border-slate-100/50">
+                        <p class="text-[10px] text-slate-400 font-semibold">Tối thiểu (Min)</p>
+                        <p id="stat-min" class="text-sm font-bold text-slate-800 mt-0.5">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thẻ AI Logic Explanation -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm shadow-slate-100">
+                <h3 class="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    🧠 Trí tuệ AI kiểm soát lag
+                </h3>
+                <p class="text-xs text-slate-500 leading-relaxed">
+                    AI giám sát độ lệch thời gian giữa từng khung hình (Frame Jitter/Stutter) và độ trễ phản hồi cảm nhận trực tiếp. Khi phát hiện **giật khựng đột ngột**, AI sẽ lập tức giảm tải vật lý để hạ nhiệt. Khi mượt mà, AI tăng nhanh vật thể để tìm điểm cực hạn của thiết bị.
+                </p>
+                
+                <!-- Thanh tiến trình mô tả mức độ lag cảm nhận -->
+                <div class="mt-4">
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                        <span>ĐỘ TRỄ CẢM NHẬN ĐƯỢC:</span>
+                        <span id="jitter-val">0.0ms</span>
+                    </div>
+                    <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div id="jitter-bar" class="h-full bg-emerald-500 transition-all duration-300 w-0"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Các Nút Điều Khiển -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm shadow-slate-100 flex flex-col gap-2.5">
+                <!-- Nút Bật/Tắt Auto -->
+                <button id="btn-auto" class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    <span>TỰ ĐỘNG ĐIỀU CHỈNH: BẬT</span>
+                </button>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <!-- Nút Reset -->
+                    <button id="btn-reset" class="bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-700 font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"></path></svg>
+                        LÀM MỚI (RESET)
+                    </button>
+                    <!-- Nút Tạm Dừng -->
+                    <button id="btn-stop" class="bg-rose-50 hover:bg-rose-100 active:scale-[0.98] text-rose-600 font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-sm">
+                        <svg id="stop-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5"></path></svg>
+                        <span id="stop-text">DỪNG LẠI</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-4xl mx-auto border-t border-slate-100 pt-4 mt-6 text-center">
+        <p class="text-xs text-slate-400 font-medium">© 2026 Trang Đánh Giá Hiệu Năng Chân Thực • Bản Quyền Trực Tiếp Phần Cứng</p>
+    </footer>
+
+    <!-- LOGIC SCRIPT XỬ LÝ TOÀN BỘ BENCHMARK THẬT -->
+    <script>
+        const canvas = document.getElementById('physics-canvas');
+        const ctx = canvas.getContext('2d');
+        const circleContainer = document.getElementById('circle-container');
+        const glowIndicator = document.getElementById('glow-indicator');
+
+        // Các phần tử giao diện hiển thị
+        const statCurrent = document.getElementById('stat-current');
+        const statAvg = document.getElementById('stat-avg');
+        const statMax = document.getElementById('stat-max');
+        const statMin = document.getElementById('stat-min');
+        const statFps = document.getElementById('stat-fps');
+        const aiStatusBadge = document.getElementById('ai-status-badge');
+        const aiAngerPercent = document.getElementById('ai-anger-percent');
+        const jitterVal = document.getElementById('jitter-val');
+        const jitterBar = document.getElementById('jitter-bar');
+
+        // Nút bấm
+        const btnAuto = document.getElementById('btn-auto');
+        const btnReset = document.getElementById('btn-reset');
+        const btnStop = document.getElementById('btn-stop');
+        const stopText = document.getElementById('stop-text');
+        const stopIcon = document.getElementById('stop-icon');
+
+        // Trạng thái vận hành
+        let isRunning = true;
+        let isAutoMode = true;
+
+        // Chỉ số đo đạc vật lý
+        let objects = [];
+        let objectCountsHistory = [];
+        let globalMin = Infinity;
+        let globalMax = 0;
+
+        // Cấu hình vật thể hạt va chạm thực tế (Stress test)
+        const BASE_PARTICLES = 15; // Khởi đầu mượt mà
+        let currentTargetCount = BASE_PARTICLES;
+
+        // Lớp định nghĩa hạt vật lý thực tế
+        class Particle {
+            constructor(x, y, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                
+                // Vận tốc ngẫu nhiên để ép CPU tính toán liên tục
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1.5 + Math.random() * 2.5;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+            }
+
+            update(canvasWidth, canvasHeight) {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Tọa độ tâm và bán kính vòng tròn canvas để va chạm hoàn hảo
+                const centerX = canvasWidth / 2;
+                const centerY = canvasHeight / 2;
+                const limitRadius = canvasWidth / 2 - this.radius - 2;
+
+                // Tính khoảng cách tới tâm hình tròn
+                const dx = this.x - centerX;
+                const dy = this.y - centerY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Nếu hạt vượt quá bán kính hình tròn -> tính phản xạ va chạm chính xác
+                if (dist > limitRadius) {
+                    // Vector pháp tuyến tại điểm va chạm
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    // Đẩy hạt về lại vùng giới hạn
+                    this.x = centerX + nx * limitRadius;
+                    this.y = centerY + ny * limitRadius;
+
+                    // Phản xạ vận tốc dựa trên vector pháp tuyến
+                    const dotProduct = this.vx * nx + this.vy * ny;
+                    this.vx = this.vx - 2 * dotProduct * nx;
+                    this.vy = this.vy - 2 * dotProduct * ny;
+
+                    // Thêm chút tính toán ma sát để tăng tải CPU
+                    this.vx *= 0.999;
+                    this.vy *= 0.999;
+                }
+            }
+
+            draw(context) {
+                context.beginPath();
+                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                context.fillStyle = this.color;
+                context.fill();
+            }
+        }
+
+        // Tự động điều chỉnh kích thước Canvas khít với kích thước vùng chứa (Responsive)
+        function resizeCanvas() {
+            const size = circleContainer.clientWidth - 48; // bớt đi khoảng viền padding
+            canvas.width = size;
+            canvas.height = size;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Tạo màu sắc gradient ngẫu nhiên cho hạt để tạo cảm giác trực quan đẹp mắt
+        function getRandomColor() {
+            const colors = [
+                '#4f46e5', '#3b82f6', '#06b6d4', '#10b981', 
+                '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6'
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Đồng bộ hóa số lượng hạt thực tế vẽ trên màn hình
+        function syncParticleCount(target) {
+            target = Math.max(1, Math.round(target));
+            
+            // Nếu thiếu hạt, tạo thêm hạt mới tinh tế
+            while (objects.length < target) {
+                const r = 3 + Math.random() * 5; // Kích thước hạt nhỏ gọn
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * (canvas.width / 2 - r - 5);
+                const x = canvas.width / 2 + Math.cos(angle) * dist;
+                const y = canvas.height / 2 + Math.sin(angle) * dist;
+                objects.push(new Particle(x, y, r, getRandomColor()));
+            }
+
+            // Nếu thừa hạt, lược bớt đi
+            if (objects.length > target) {
+                objects.length = target;
+            }
+        }
+
+        // --- ĐO ĐẠC FPS VÀ PHÂN TÍCH TRỄ BẰNG BỘ NÃO AI GIAO DIỆN ---
+        let lastFrameTime = performance.now();
+        let frameTimes = []; // Lưu trữ thời gian trễ của 40 khung hình gần nhất để phân tích jitter
+        const MAX_FRAME_SAMPLES = 40;
+        
+        let fpsCounter = 0;
+        let lastFpsUpdate = performance.now();
+        let currentFps = 60;
+
+        // Trạng thái tự động hồi phục / giận dữ của AI
+        let aiAngerLevel = 0; // Thang đo 0 (Mượt mà) đến 100 (Giật phát điên)
+
+        function analyzePerformanceWithAI(now) {
+            const dt = now - lastFrameTime;
+            lastFrameTime = now;
+
+            // Bỏ qua khung hình đầu tiên nếu bị nhảy số quá lớn
+            if (dt > 200) {
+                return;
+            }
+
+            // Thêm mẫu thời gian khung hình vào mảng mẫu
+            frameTimes.push(dt);
+            if (frameTimes.length > MAX_FRAME_SAMPLES) {
+                frameTimes.shift();
+            }
+
+            // Tính toán FPS thực tế độc lập
+            fpsCounter++;
+            if (now - lastFpsUpdate >= 1000) {
+                currentFps = Math.round((fpsCounter * 1000) / (now - lastFpsUpdate));
+                statFps.textContent = `${currentFps} FPS`;
+                fpsCounter = 0;
+                lastFpsUpdate = now;
+            }
+
+            // --- GIẢI THUẬT AI PHÁT HIỆN SỰ KHỰNG/TRỄ (STUTTER/JITTER) ---
+            // Thay vì nhìn vào FPS, AI phân tích sự biến động liên tục giữa các khung hình (Jitter).
+            // Nếu game giật lag, thời gian giữa các khung hình sẽ biến thiên đột ngột (Ví dụ: 16ms -> 50ms -> 8ms).
+            // Đây chính là nguyên nhân gây ra cảm giác "lag dữ dội" mà người dùng cảm nhận được.
+            if (frameTimes.length >= 10) {
+                // Tính trung bình
+                let sum = 0;
+                for (let t of frameTimes) sum += t;
+                const avgFrameTime = sum / frameTimes.length;
+
+                // Tính độ lệch chuẩn (Standard Deviation) đại diện cho độ giật thực tế
+                let varianceSum = 0;
+                for (let t of frameTimes) {
+                    varianceSum += Math.pow(t - avgFrameTime, 2);
+                }
+                const standardDeviation = Math.sqrt(varianceSum / frameTimes.length); // Đơn vị: miliseconds (ms)
+                
+                // Tìm khung hình trễ tồi tệ nhất trong chu kỳ gần đây
+                const maxFrameTime = Math.max(...frameTimes);
+
+                // Thể hiện mức độ trễ cảm nhận trực quan lên màn hình
+                jitterVal.textContent = `${standardDeviation.toFixed(1)} ms`;
+                const jitterPercent = Math.min(100, (standardDeviation / 15) * 100);
+                jitterBar.style.width = `${jitterPercent}%`;
+                
+                // Đổi màu thanh hiển thị trễ dựa trên mức độ trễ cảm nhận thực tế
+                if (standardDeviation > 8) {
+                    jitterBar.className = "h-full bg-rose-500 transition-all duration-300";
+                } else if (standardDeviation > 4) {
+                    jitterBar.className = "h-full bg-amber-500 transition-all duration-300";
+                } else {
+                    jitterBar.className = "h-full bg-emerald-500 transition-all duration-300";
+                }
+
+                // AI đánh giá độ trễ thực:
+                // Nếu độ lệch lớn hơn 5.5ms HOẶC có khung hình đơn lẻ bị nghẽn quá 38ms (bị drop cực nặng)
+                // -> AI kích hoạt trạng thái "giận dữ vì lag" (Anger Level tăng vọt).
+                const isStutteringSevere = (standardDeviation > 5.5) || (maxFrameTime > 38);
+                const isSmoothAndFast = (standardDeviation < 2.0) && (maxFrameTime < 20);
+
+                if (isStutteringSevere) {
+                    // AI phản ứng dữ dội trước tình trạng khựng trễ
+                    aiAngerLevel = Math.min(100, aiAngerLevel + 8); // Tăng nhanh độ giận dữ
+                } else if (isSmoothAndFast) {
+                    // Máy chạy êm ái, giảm độ giận dữ nhanh chóng
+                    aiAngerLevel = Math.max(0, aiAngerLevel - 4);
+                } else {
+                    // Trạng thái bình thường hoặc trễ nhẹ
+                    aiAngerLevel = Math.max(0, aiAngerLevel - 1);
+                }
+
+                // Cập nhật giao diện trạng thái của AI
+                aiAngerPercent.textContent = `Lag Cảm Nhận: ${Math.round(aiAngerLevel)}%`;
+                
+                if (aiAngerLevel > 70) {
+                    aiStatusBadge.textContent = "💢 CỰC KỲ KHỰNG!";
+                    aiStatusBadge.className = "text-sm font-extrabold text-rose-600 mt-1 transition-colors duration-300";
+                    glowIndicator.className = "absolute inset-0 rounded-full border-4 border-rose-500 animate-pulse pointer-events-none";
+                } else if (aiAngerLevel > 30) {
+                    aiStatusBadge.textContent = "⚠️ Cảm giác hơi lag";
+                    aiStatusBadge.className = "text-sm font-extrabold text-amber-500 mt-1 transition-colors duration-300";
+                    glowIndicator.className = "absolute inset-0 rounded-full border-2 border-amber-400 pointer-events-none";
+                } else {
+                    aiStatusBadge.textContent = "🟢 Siêu mượt mà";
+                    aiStatusBadge.className = "text-sm font-extrabold text-emerald-600 mt-1 transition-colors duration-300";
+                    glowIndicator.className = "absolute inset-0 rounded-full border border-slate-200 pointer-events-none";
+                }
+
+                // --- ĐIỀU CHỈNH THÔNG MINH BẰNG AI (KHI ĐƯỢC BẬT AUTO) ---
+                if (isAutoMode) {
+                    if (aiAngerLevel > 50) {
+                        // AI phát hiện cảm nhận trễ giận dữ -> Giảm lượng vật thể TỪ TỪ để tránh giật đột ngột
+                        currentTargetCount = Math.max(5, currentTargetCount - Math.ceil(currentTargetCount * 0.05));
+                    } else if (aiAngerLevel < 15) {
+                        // Thiết bị chạy mượt tinh tế -> Tăng lượng vật thể NHANH CHÓNG để dò ngưỡng sức mạnh
+                        const speedFactor = Math.ceil(currentTargetCount * 0.12) + 2;
+                        currentTargetCount = Math.min(25000, currentTargetCount + speedFactor);
+                    }
+                }
+            }
+        }
+
+        // Thống kê liên tục về số vật thể tối đa, tối thiểu, trung bình
+        function updateObjectStatistics() {
+            const count = objects.length;
+            statCurrent.textContent = count.toLocaleString('vi-VN');
+
+            // Cập nhật kỷ lục cực trị
+            if (count > globalMax) globalMax = count;
+            if (count < globalMin && count > 0) globalMin = count;
+
+            statMax.textContent = globalMax.toLocaleString('vi-VN');
+            statMin.textContent = globalMin === Infinity ? 0 : globalMin.toLocaleString('vi-VN');
+
+            // Tính toán trung bình lịch sử
+            objectCountsHistory.push(count);
+            if (objectCountsHistory.length > 500) {
+                objectCountsHistory.shift();
+            }
+            const avgSum = objectCountsHistory.reduce((a, b) => a + b, 0);
+            const avgVal = Math.round(avgSum / objectCountsHistory.length);
+            statAvg.textContent = avgVal.toLocaleString('vi-VN');
+        }
+
+        // --- VÒNG LẶP CHẠY HIỆU NĂNG CHÍNH ---
+        function runBenchmarkLoop(now) {
+            if (!isRunning) return;
+
+            // Xoá canvas chuẩn bị vẽ
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Đồng bộ số lượng vật thể với mục tiêu điều tiết của AI
+            syncParticleCount(currentTargetCount);
+
+            // Cập nhật tọa độ và vẽ va chạm thực tế của từng hạt
+            const len = objects.length;
+            for (let i = 0; i < len; i++) {
+                objects[i].update(canvas.width, canvas.height);
+                objects[i].draw(ctx);
+            }
+
+            // Đo lường hiệu năng bằng AI
+            analyzePerformanceWithAI(now);
+
+            // Cập nhật số liệu hiển thị
+            updateObjectStatistics();
+
+            // Lặp lại khung hình tiếp theo bằng cơ chế chuẩn của trình duyệt
+            requestAnimationFrame(runBenchmarkLoop);
+        }
+
+        // Khởi động nhẹ nhàng vòng lặp sau khi trang được tải hoàn tất
+        window.onload = function() {
+            syncParticleCount(BASE_PARTICLES);
+            requestAnimationFrame(runBenchmarkLoop);
+        };
+
+        // --- SỰ KIỆN NÚT BẤM ĐIỀU KHIỂN ---
+
+        // BẬT / TẮT CHẾ ĐỘ TỰ ĐỘNG (AUTO)
+        btnAuto.addEventListener('click', () => {
+            isAutoMode = !isAutoMode;
+            if (isAutoMode) {
+                btnAuto.className = "w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2";
+                btnAuto.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    <span>TỰ ĐỘNG ĐIỀU CHỈNH: BẬT</span>
+                `;
+            } else {
+                btnAuto.className = "w-full bg-slate-500 hover:bg-slate-600 active:scale-[0.98] text-white font-bold py-3.5 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-slate-500/10 flex items-center justify-center gap-2";
+                btnAuto.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                    <span>TỰ ĐỘNG ĐIỀU CHỈNH: TẮT</span>
+                `;
+            }
+        });
+
+        // RESET TRẠNG THÁI & CHỈ SỐ ĐO
+        btnReset.addEventListener('click', () => {
+            objects = [];
+            objectCountsHistory = [];
+            globalMin = Infinity;
+            globalMax = 0;
+            currentTargetCount = BASE_PARTICLES;
+            aiAngerLevel = 0;
+            frameTimes = [];
+            
+            statCurrent.textContent = "0";
+            statAvg.textContent = "0";
+            statMax.textContent = "0";
+            statMin.textContent = "0";
+            
+            if (!isRunning) {
+                isRunning = true;
+                stopText.textContent = "DỪNG LẠI";
+                stopIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5"></path>`;
+                btnStop.className = "bg-rose-50 hover:bg-rose-100 active:scale-[0.98] text-rose-600 font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-sm";
+                requestAnimationFrame(runBenchmarkLoop);
+            }
+        });
+
+        // TẠM DỪNG / TIẾP TỤC KIỂM TRA (STOP)
+        btnStop.addEventListener('click', () => {
+            if (isRunning) {
+                // Tạm dừng vẽ để hạ nhiệt thiết bị
+                isRunning = false;
+                stopText.textContent = "TIẾP TỤC CHẠY";
+                stopIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"></path>`;
+                btnStop.className = "bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] text-emerald-600 font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-sm";
+                aiStatusBadge.textContent = "⏸️ Đã tạm dừng";
+                aiStatusBadge.className = "text-sm font-extrabold text-slate-500 mt-1";
+                glowIndicator.className = "absolute inset-0 rounded-full border border-dashed border-slate-300 pointer-events-none";
+            } else {
+                // Kích hoạt lại vòng lặp
+                isRunning = true;
+                stopText.textContent = "DỪNG LẠI";
+                stopIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5"></path>`;
+                btnStop.className = "bg-rose-50 hover:bg-rose-100 active:scale-[0.98] text-rose-600 font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-sm";
+                lastFrameTime = performance.now();
+                requestAnimationFrame(runBenchmarkLoop);
+            }
+        });
+    </script>
+</body>
+</html>
