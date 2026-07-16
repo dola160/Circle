@@ -83,16 +83,16 @@
                 </div>
 
                 <!-- Khung thông tin đè lên khi chạy benchmark 60 giây (Nằm ở góc dưới bên trái) -->
-                <div id="benchmarkIndicator" class="hidden absolute bottom-4 left-4 z-20 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-4 shadow-2xl border border-slate-700/50 flex flex-col gap-1 min-w-[190px] pointer-events-none">
+                <div id="benchmarkIndicator" class="hidden absolute bottom-4 left-4 z-20 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-4 shadow-2xl border border-slate-700/50 flex flex-col gap-1 min-w-[210px] pointer-events-none">
                     <div class="flex items-center gap-2 text-[10px] text-red-400 font-bold uppercase tracking-widest">
-                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
-                        <span>BENCHMARK ĐANG CHẠY</span>
+                        <span id="benchmarkStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+                        <span id="benchmarkStatusText">ĐANG KHỞI ĐỘNG...</span>
                     </div>
                     <div class="text-xs mt-1">Số lượng vật thể: <span id="overlayObjCount" class="text-blue-400 font-extrabold text-sm">0</span></div>
-                    <div class="text-xs">Thời gian còn lại: <span id="overlayCountdown" class="text-amber-400 font-extrabold text-sm">60s</span></div>
+                    <div class="text-xs">Thời gian kiểm tra: <span id="overlayCountdown" class="text-amber-400 font-extrabold text-sm">Chờ 60 FPS</span></div>
                     <div class="text-[9px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        Màn hình luôn sáng
+                        Màn hình luôn giữ sáng
                     </div>
                 </div>
             </div>
@@ -272,6 +272,8 @@
         const benchmarkIndicator = document.getElementById('benchmarkIndicator');
         const overlayObjCount = document.getElementById('overlayObjCount');
         const overlayCountdown = document.getElementById('overlayCountdown');
+        const benchmarkStatusDot = document.getElementById('benchmarkStatusDot');
+        const benchmarkStatusText = document.getElementById('benchmarkStatusText');
 
         // Các phần tử cho cấu trúc Modal kết quả
         const benchmarkResultModal = document.getElementById('benchmarkResultModal');
@@ -282,6 +284,8 @@
         const modalDeviceTier = document.getElementById('modalDeviceTier');
 
         let is60sActive = false;
+        let isCalibrating = false; // Trạng thái chờ FPS đạt mốc mượt mà (tối đa) để đo chính xác
+        let calibrationTimeout = null; // Tránh treo vĩnh viễn trên máy quá yếu không thể đạt 60 FPS
         let benchmarkTimer = null;
         let timeLeft = 60;
         let wakeLock = null; // Sentinel dùng để kiểm soát việc khóa giữ sáng màn hình
@@ -501,8 +505,16 @@
                 frameCount = 0;
                 lastFpsUpdateTime = currentTime;
 
-                // THUẬT TOÁN ĐIỀU PHỐI ĐỘNG VẬT THỂ TỰ ĐỘNG KHÔNG PHỤ THUỘC FPS:
-                if (isAutoMode) {
+                // KIỂM TRA ĐIỀU KIỆN ỔN ĐỊNH FPS (Nếu đang ở trạng thái hiệu chuẩn)
+                if (is60sActive && isCalibrating) {
+                    // Khi bắt đầu từ 0 vật thể, thiết bị bình thường sẽ dễ dàng chạm mốc tối đa 60 FPS (hoặc tiệm cận >= 58 FPS)
+                    if (fps >= 58) {
+                        triggerStartOfficial60sCountdown();
+                    }
+                }
+
+                // THUẬT TOÁN ĐIỀU PHỐI ĐỘNG VẬT THỂ TỰ ĐỘNG KHÔNG PHỤ THUỘC FPS (Chỉ kích hoạt khi không ở trạng thái đợi mượt mà)
+                if (isAutoMode && !isCalibrating) {
                     const avgRenderTime = renderTimeSum / renderCount;
                     const beforeCount = objectCount;
 
@@ -662,11 +674,11 @@
             }
         }
 
-        // BẮT ĐẦU CHẾ ĐỘ AUTO BENCHMARK 60 GIÂY (BẮT ĐẦU TỪ 0 VÀ GIỮ MÀN HÌNH SÁNG)
+        // BẮT ĐẦU CHẾ ĐỘ AUTO BENCHMARK 60 GIÂY
         function start60sBenchmark() {
             if (is60sActive) return;
             is60sActive = true;
-            timeLeft = 60;
+            isCalibrating = true; // Kích hoạt chế độ chờ ổn định 60 FPS trước khi đo
 
             // THIẾT LẬP BẮT ĐẦU TỪ 0 VẬT THỂ
             objectCount = 0;
@@ -685,9 +697,11 @@
                 togglePlayPause();
             }
 
-            // Đồng bộ dữ liệu hiển thị tức thì lên khung nổi
-            overlayCountdown.innerText = "60s";
+            // Thiết lập trạng thái chờ mượt mà trên UI nổi
+            overlayCountdown.innerText = "Chờ 60 FPS...";
             overlayObjCount.innerText = "0";
+            benchmarkStatusText.innerText = "ĐANG KHỞI ĐỘNG...";
+            benchmarkStatusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
 
             // Áp dụng lớp phóng to toàn bộ màn hình
             canvasContainer.classList.add('benchmark-fullscreen');
@@ -714,9 +728,31 @@
             requestWakeLock();
 
             addLog("🚀 KHỞI ĐỘNG CHU KỲ TEST 60 GIÂY (BẮT ĐẦU TỪ 0 VẬT THỂ)...");
-            addLog("🔒 Hệ thống đã tạm thời khóa tương tác, chống cuộn, chống tắt màn hình.");
+            addLog("⏳ Đang chuẩn bị... Chờ tốc độ khung hình (FPS) ổn định tối đa để bắt đầu đo chính xác.");
 
-            // Bắt đầu đếm ngược 60 giây
+            // Bộ hẹn giờ dự phòng (tối đa 3 giây) đề phòng thiết bị cấu hình quá yếu không bao giờ đạt được 60 FPS
+            calibrationTimeout = setTimeout(() => {
+                if (isCalibrating) {
+                    addLog("⚠️ Đã quá thời gian chờ hiệu chuẩn mượt mà. Tự động bắt đầu test ngay.");
+                    triggerStartOfficial60sCountdown();
+                }
+            }, 3000);
+        }
+
+        // KÍCH HOẠT CHẠY THỜI GIAN ĐẾM NGƯỢC CHÍNH THỨC 60 GIÂY SAU KHI FPS ĐÃ ĐẠT ĐỈNH (TỐI ĐA)
+        function triggerStartOfficial60sCountdown() {
+            if (!isCalibrating) return;
+            isCalibrating = false;
+            clearTimeout(calibrationTimeout); // Xóa bộ đếm dự phòng
+
+            timeLeft = 60;
+            overlayCountdown.innerText = "60s";
+            benchmarkStatusText.innerText = "BENCHMARK ĐANG CHẠY";
+            benchmarkStatusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-ping";
+
+            addLog("🔥 Thiết bị đã đạt FPS ổn định tối đa. Bắt đầu đếm ngược 60 giây và đo hiệu năng thực tế!");
+
+            // Bắt đầu đếm ngược 60 giây chính thức
             benchmarkTimer = setInterval(() => {
                 timeLeft--;
                 overlayCountdown.innerText = `${timeLeft}s`;
@@ -731,7 +767,9 @@
         function stop60sBenchmark(showResults = false) {
             if (!is60sActive) return;
             clearInterval(benchmarkTimer);
+            clearTimeout(calibrationTimeout);
             is60sActive = false;
+            isCalibrating = false;
 
             // Giải phóng việc khóa màn hình sáng
             releaseWakeLock();
